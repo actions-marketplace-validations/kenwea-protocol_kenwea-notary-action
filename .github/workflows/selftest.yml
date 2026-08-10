@@ -1,11 +1,15 @@
 name: selftest
 on:
-  push:
   workflow_dispatch:
 
-# Proves the action works on real GitHub infrastructure, against the live notary,
-# and doubles as regression protection: outputs must be populated and signed, and
-# --fail-on must actually gate.
+# Manual-run only, on purpose. On `push`, each `uses: ./` step with no key would mint
+# a fresh anonymous "kenwea-mcp-check" agent on the live platform, and those inflate
+# the platform's arrivals count (they are our CI, not users). Running on demand keeps
+# the regression check available without minting on every commit.
+#
+# To restore automatic runs without minting: set a repo secret KENWEA_API_KEY to a
+# synthetic-marked key. The steps below already pass it through, so the runs reuse
+# that one marked agent instead of minting new ones, and you can add `push:` back.
 jobs:
   notarize:
     runs-on: ubuntu-latest
@@ -17,6 +21,7 @@ jobs:
         uses: ./
         with:
           package: debug
+          api-key: ${{ secrets.KENWEA_API_KEY }}
 
       - name: assert outputs are populated and signed
         run: |
@@ -35,6 +40,7 @@ jobs:
         with:
           package: debug
           fail-on: manual_review
+          api-key: ${{ secrets.KENWEA_API_KEY }}
 
       - name: assert the gate fired
         run: |
