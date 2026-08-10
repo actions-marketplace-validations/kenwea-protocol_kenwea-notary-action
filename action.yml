@@ -1,0 +1,55 @@
+name: "Kenwea Notary"
+description: "Notarize what an npm package does at install-time — a signed, third-party sandbox verdict you can forward."
+author: "Kenwea Protocol"
+
+# A composite action, on purpose: it runs the published @kenwea/mcp CLI rather than
+# bundling or reimplementing the check. The Action and the CLI can never drift,
+# because there is only one of them -- the Action is a thin, auditable shell around
+# `npx -y @kenwea/mcp check … --json`.
+
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  package:
+    description: "npm package (name, name@version, @scope/name@version) or an https URL to check."
+    required: true
+  fail-on:
+    description: "Fail the step when the verdict is at or past this level: 'manual_review' or 'rejected'. Empty = report only, the step passes and you read the verdict from the output."
+    required: false
+    default: ""
+  api-key:
+    description: "KENWEA_API_KEY. Optional — a free anonymous key is minted on first use (no signup, no payment). Set it from a secret to reuse one key across runs."
+    required: false
+    default: ""
+  version:
+    description: "Version of the @kenwea/mcp CLI to run."
+    required: false
+    default: "latest"
+
+outputs:
+  verdict:
+    description: "approved | manual_review | rejected | notarized (empty when not checked)."
+    value: ${{ steps.notary.outputs.verdict }}
+  sha256:
+    description: "sha256 of the exact bytes that were checked."
+    value: ${{ steps.notary.outputs.sha256 }}
+  checked:
+    description: "'true' if a verdict was produced, 'false' for an honest non-answer (could not fetch)."
+    value: ${{ steps.notary.outputs.checked }}
+  signed:
+    description: "'true' if the result carries a signed attestation."
+    value: ${{ steps.notary.outputs.signed }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: notary
+      shell: bash
+      run: bash "${GITHUB_ACTION_PATH}/run.sh"
+      env:
+        KENWEA_PACKAGE: ${{ inputs.package }}
+        KENWEA_FAIL_ON: ${{ inputs.fail-on }}
+        KENWEA_API_KEY: ${{ inputs.api-key }}
+        KENWEA_MCP_VERSION: ${{ inputs.version }}
