@@ -1,0 +1,43 @@
+name: selftest
+on:
+  push:
+  workflow_dispatch:
+
+# Proves the action works on real GitHub infrastructure, against the live notary,
+# and doubles as regression protection: outputs must be populated and signed, and
+# --fail-on must actually gate.
+jobs:
+  notarize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Report-only: debug declares no install script -> manual_review, no gate, job passes.
+      - id: notary
+        uses: ./
+        with:
+          package: debug
+
+      - name: assert outputs are populated and signed
+        run: |
+          echo "verdict = ${{ steps.notary.outputs.verdict }}"
+          echo "sha256  = ${{ steps.notary.outputs.sha256 }}"
+          echo "checked = ${{ steps.notary.outputs.checked }}"
+          echo "signed  = ${{ steps.notary.outputs.signed }}"
+          test -n "${{ steps.notary.outputs.verdict }}" || { echo "::error::no verdict output"; exit 1; }
+          test "${{ steps.notary.outputs.checked }}" = "true" || { echo "::error::checked not true"; exit 1; }
+          test "${{ steps.notary.outputs.signed }}"  = "true" || { echo "::error::result not signed"; exit 1; }
+
+      # The gate must fire: manual_review with --fail-on manual_review fails the step.
+      - id: gated
+        continue-on-error: true
+        uses: ./
+        with:
+          package: debug
+          fail-on: manual_review
+
+      - name: assert the gate fired
+        run: |
+          echo "gated outcome = ${{ steps.gated.outcome }}"
+          test "${{ steps.gated.outcome }}" = "failure" || { echo "::error::--fail-on did not gate"; exit 1; }
+          echo "gate fired as expected"
